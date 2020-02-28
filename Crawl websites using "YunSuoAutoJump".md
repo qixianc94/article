@@ -101,7 +101,64 @@ print(response.content)
 
 
 ### 第三次爬取
-加判断，如果有'removeItem'那就删除cookie的'srcurl'，并访问重定向页面
+加判断，如果有'removeItem'那就删除cookie的'srcurl'，并访问重定向页面  
+多试几次第二次爬取的代码，就会发现这种js重定向页面只有两样，/和base_url  
+针对这一种js，写出代码
 ```
+...
+    if 'srcurl' in cookie:
+        del cookie['srcurl']
+    # 正则找出url
+    s = re.search('location = "(.*?)"',response.text).group(1)
+    if s == '/':
+        response = requests.get("http://jobbole.com"+s,headers=headers,cookies=cookie)
+    else:
+        response = requests.get(base_url,headers=headers,cookies=cookie)
+```
+这时候得到的response就是我们想要的网站内容了
 
+
+### 最后加上逻辑判断
+最后网站内容是没有location关键词的，就用这个来终止循坏。然后爬的太快ip就被禁用了，加上sleep
+```
+# 完整代码
+import requests
+import time
+import re
+def stringToHex(str):
+	val = ""
+	for i in range(len(str)):
+		val += hex(ord(str[i]))[2:]
+	return val
+headers = {
+    "User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36"
+}
+base_url = "http://jobbole.com/gongsi/qywh/84717.html"
+response = requests.get(base_url,headers=headers)
+cookie = {"srcurl":stringToHex(base_url),"path":"/"}
+# 存储cookie
+for key, value in response.cookies.items():
+	cookie[key] = value
+	
+
+while 'location' in response.text:
+	time.sleep(1)
+	# 简单的判断是哪种js
+	if "stringToHex" in response.text:
+		response = requests.get(base_url+"?security_verify_data=323536302c31343430",headers=headers,cookies=cookie)
+		print(base_url+"?security_verify_data=323536302c31343430")
+		print(response.text)
+	else:
+		if 'srcurl' in cookie:
+			del cookie['srcurl']
+		s = re.search('location = "(.*?)"',response.text).group(1)
+		if s == '/':
+			response = requests.get("http://jobbole.com"+s,headers=headers,cookies=cookie)
+		else:
+			response = requests.get(base_url,headers=headers,cookies=cookie)
+	for key, value in response.cookies.items():
+		cookie[key] = value
+# 存起来，已经拿到内容了，随便操作
+with open('blogs.txt','w',encoding="utf-8") as f:
+	f.write(response.content.decode())
 ```
